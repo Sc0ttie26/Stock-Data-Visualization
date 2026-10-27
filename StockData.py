@@ -1,5 +1,6 @@
 """Stock Data Visualizer - queries Alpha Vantage and charts a date range in the browser.
 """
+# Import the libraries
 import os
 import sys
 from datetime import datetime
@@ -7,12 +8,15 @@ import time
 import pygal
 import requests
 
+# Store the API address and read the API key
 API_URL = "https://www.alphavantage.co/query"
 API_KEY = os.environ.get("ALPHAVANTAGE_API_KEY", "YOUR_API_KEY_HERE")
 
+# let user pick a bar chart or a line chart.
 CHART_TYPES = {"1": ("Bar", pygal.Bar), "2": ("Line", pygal.Line)}
 
-# menu choice -> (API function, JSON key holding the series, extra params)
+# connect each menu option to the matching Alpha Vantage request.
+# entries include API function, response key, and any extra request settings
 TIME_SERIES = {
     "1": ("Intraday (60 min)", "TIME_SERIES_INTRADAY", "Time Series (60min)", {"interval": "60min"}),
     "2": ("Daily", "TIME_SERIES_DAILY", "Time Series (Daily)", {}),
@@ -21,6 +25,7 @@ TIME_SERIES = {
 }
 
 
+# Display a numbered menu until the user enters a valid input
 def prompt_choice(title, options):
     """Show a numbered menu and return the chosen entry."""
     print(f"\n{title}")
@@ -34,6 +39,7 @@ def prompt_choice(title, options):
         print("Invalid choice, try again.")
 
 
+# Ask for a stock symbol, then make it uppercase and check that it contains letters
 def prompt_symbol():
     while True:
         symbol = input("Enter the stock symbol you are looking for (e.g. IBM): ").strip().upper()
@@ -42,6 +48,7 @@ def prompt_symbol():
         print("Please enter a valid stock symbol (letters only).")
 
 
+# Ask for a date in YYYY-MM-DD format and make sure it is not too early
 def prompt_date(message, minimum=None):
     """Ask for a YYYY-MM-DD date; reject bad formats and dates before `minimum`."""
     while True:
@@ -57,6 +64,7 @@ def prompt_date(message, minimum=None):
         return date
 
 
+# Request stock data from Alpha Vantage
 def fetch_data(symbol, function, params):
     """Try full history first; fall back to compact (last ~100 points) on free keys."""
     for size in ("full", "compact"):
@@ -65,17 +73,20 @@ def fetch_data(symbol, function, params):
             response = requests.get(API_URL, params=query, timeout=30)
             response.raise_for_status()
         except requests.RequestException as err:
+            # Stop message if the web request fails
             sys.exit(f"Network error: {err}")
         raw = response.json()
         message = str(raw.get("Information", "")) + str(raw.get("Note", ""))
         if size == "full" and "premium" in message.lower() and "outputsize" in message.lower():
+            # Wait
             print("Full history is a premium feature; using the most recent ~100 data points instead.")
-            time.sleep(1.5)  # stay under the free tier's 1 request/second limit
+            time.sleep(1.5)
             continue
         return raw
     return raw
 
 
+# Keep only rows inside the dates and arrange from oldest to newest
 def filter_series(raw, series_key, start, end):
     """Return (labels, opens, highs, lows, closes) sorted oldest -> newest within the range."""
     if series_key not in raw:
@@ -89,11 +100,13 @@ def filter_series(raw, series_key, start, end):
             rows.append((stamp, values))
     rows.sort(key=lambda r: r[0])
 
+    # Separate dates and prices so they can be added
     labels = [r[0] for r in rows]
     cols = [[float(r[1][f"{i}. {name}"]) for r in rows] for i, name in enumerate(["open", "high", "low", "close"], 1)]
     return (labels, *cols)
 
 
+# Create a chart and add the stock's prices
 def build_chart(chart_cls, symbol, series_name, start, end, data):
     labels, opens, highs, lows, closes = data
     chart = chart_cls(x_label_rotation=45, show_minor_x_labels=False, width=1100, height=600)
@@ -107,22 +120,25 @@ def build_chart(chart_cls, symbol, series_name, start, end, data):
     return chart
 
 
+# Run program by collecting choices, getting data, and opening the finished chart
 def main():
+    # Ask user what stock and chart settings to use
     symbol = prompt_symbol()
     chart_name, chart_cls = prompt_choice("Chart Types", CHART_TYPES)
     series_name, function, series_key, extra = prompt_choice("Select the Time Series of the chart you want to generate", TIME_SERIES)
     start = prompt_date("Enter the begin date (YYYY-MM-DD): ")
     end = prompt_date("Enter the end date (YYYY-MM-DD): ", minimum=start)
 
+    # Download the data and remove dates that are outside the requested range
     raw = fetch_data(symbol, function, extra)
     data = filter_series(raw, series_key, start, end)
     if not data[0]:
         sys.exit("No data found for that date range.")
 
+    # Build the chart and open it in the user's browser
     chart = build_chart(chart_cls, symbol, series_name, start, end, data)
     print(f"\nGenerating {chart_name.lower()} chart with {len(data[0])} points and opening your browser...")
     chart.render_in_browser()
 
 
-if __name__ == "__main__":
-    main()
+main()
