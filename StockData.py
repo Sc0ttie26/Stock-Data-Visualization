@@ -48,9 +48,9 @@ def prompt_symbol():
         print("Please enter a valid stock symbol (letters only).")
 
 
-# Ask for a date in YYYY-MM-DD format and make sure it is not too early
-def prompt_date(message, minimum=None):
-    """Ask for a YYYY-MM-DD date; reject bad formats and dates before `minimum`."""
+# Ask for a date in YYYY-MM-DD format and check any date limits.
+def prompt_date(message, minimum=None, maximum=None):
+    """Ask for a date and reject invalid dates or dates outside the limits."""
     while True:
         text = input(message).strip()
         try:
@@ -60,6 +60,9 @@ def prompt_date(message, minimum=None):
             continue
         if minimum and date < minimum:
             print("The end date cannot be before the begin date.")
+            continue
+        if maximum and date > maximum:
+            print("The date cannot be in the future.")
             continue
         return date
 
@@ -129,8 +132,9 @@ def main():
     symbol = prompt_symbol()
     chart_name, chart_cls = prompt_choice("Chart Types", CHART_TYPES)
     series_name, function, series_key, extra = prompt_choice("Select the Time Series of the chart you want to generate", TIME_SERIES)
-    start = prompt_date("Enter the begin date (YYYY-MM-DD): ")
-    end = prompt_date("Enter the end date (YYYY-MM-DD): ", minimum=start)
+    today = datetime.today().date()
+    start = prompt_date("Enter the begin date (YYYY-MM-DD): ", maximum=today)
+    end = prompt_date("Enter the end date (YYYY-MM-DD): ", minimum=start, maximum=today)
 
     # Download the data and remove dates that are outside the requested range
     raw = fetch_data(symbol, function, extra)
