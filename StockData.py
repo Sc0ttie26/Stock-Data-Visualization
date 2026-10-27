@@ -67,6 +67,9 @@ def prompt_date(message, minimum=None):
 # Request stock data from Alpha Vantage
 def fetch_data(symbol, function, params):
     """Try full history first; fall back to compact (last ~100 points) on free keys."""
+    if not API_KEY or API_KEY == "YOUR_API_KEY_HERE":
+        sys.exit("Please set your ALPHAVANTAGE_API_KEY before running the program.")
+
     for size in ("full", "compact"):
         query = {"function": function, "symbol": symbol, "apikey": API_KEY, "outputsize": size, **params}
         try:
@@ -78,7 +81,7 @@ def fetch_data(symbol, function, params):
         raw = response.json()
         message = str(raw.get("Information", "")) + str(raw.get("Note", ""))
         if size == "full" and "premium" in message.lower() and "outputsize" in message.lower():
-            # Wait
+            # Pause before trying again so requests are not sent too quickly.
             print("Full history is a premium feature; using the most recent ~100 data points instead.")
             time.sleep(1.5)
             continue
@@ -133,7 +136,7 @@ def main():
     raw = fetch_data(symbol, function, extra)
     data = filter_series(raw, series_key, start, end)
     if not data[0]:
-        sys.exit("No data found for that date range.")
+        sys.exit("No data found. Try a more recent date range or choose Weekly or Monthly data.")
 
     # Build the chart and open it in the user's browser
     chart = build_chart(chart_cls, symbol, series_name, start, end, data)
